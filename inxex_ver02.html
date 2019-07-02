@@ -14,7 +14,7 @@
 <script src='.\node_modules\@tensorflow\tfjs\dist\tf.js'></script>
 <script>
     let data = [];
-    let ys;
+    let label;
     let classArray;
     const board = document.getElementById('board');
 
@@ -31,20 +31,28 @@
 
     function processFile(file) {
         const reader = new FileReader();
+        data = [];
+        label = null;
+        classArray = null;
         reader.onload = function () {
             const path = reader.result.split('\n');
-            path.forEach(str => {
-                if (str.length > 0) data.push(str);
+            path.forEach(function (str) {
+                if (str == "") {
+                    console.log('Delete error');
+                } else {
+                    data.push(str);
+                }
             });
-            ys = data.map(function (path) {
+            data.splice(data.indexOf(""));
+            label = data.map(function (path) {
                 const className = path.split('\\');
                 return className[className.length - 2];
             });
-            classArray = Array.from(new Set(ys));
+            classArray = Array.from(new Set(label));
             console.log('Read ' + data.length + ' items.');
             console.log('Found ' + classArray.length + ' classes.');
-            classArray.forEach(name=>{
-                console.log('- '+name);
+            classArray.forEach(name => {
+                console.log('- ' + name);
             });
         };
         reader.readAsText(file);
