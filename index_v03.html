@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Tensorflow.js</title>
+</head>
+
+<body>
+    <button value='circle' onclick="openImageFiles(this.value)">Add Circle</button>
+    <button value='rectangle' onclick="openImageFiles(this.value)">Add Rectangle</button>
+    <button value='triangle' onclick="openImageFiles(this.value)">Add Triangle</button>
+</body>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/tensorflow/1.2.2/tf.js'></script>
+<script>
+    let dataAry = [];
+    function openImageFiles(className) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = 'multiple';
+        input.onchange = function (evt) {
+            const data = evt.target.files;
+            for (let i = 0; i < data.length; i++) {
+                const fileName = data[i].name;
+                const url = URL.createObjectURL(data[i]);
+                dataAry.push([className, fileName, url]);
+            }
+        };
+        input.click();
+    }
+
+    function makeTensor(arry) {
+        const tensor = [];
+        for (let i = 0; i < arry.length; i++) {
+            const img = new Image();
+            img.onload = function(){
+                const t = tf.browser.fromPixels(img);
+                tensor.push(t);
+            }
+            img.src = arry[i][2];
+        }
+        return tensor;
+    }
+
+    function makeTensorEx(arry){
+        const tensorEx = [];
+        for(let i=0; i<arry.length; i++){
+            const ex = arry[i].expandDims();
+            tensorEx.push(ex);
+        }
+        return tensorEx;
+    }
+
+    function makeXs(arry){
+        let xs;
+        for(let i=0; i<arry.length; i++){
+            if(i == 0){
+                xs = arry[i];
+            }else{
+                xs = xs.concat(arry[i])
+            }
+        }
+        return xs;
+    }
+</script>
+
+</html>
