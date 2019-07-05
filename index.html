@@ -132,7 +132,7 @@
         const myProb = Math.max.apply(null, myPredict);
         const myLabel = label[myPredict.indexOf(myProb)];
         console.log('My prediction : %s', myLabel);
-        console.log('Probability : %f', myProb);
+        console.log('Probability : %s', myProb.toFixed(4));
     }
 </script>
 
