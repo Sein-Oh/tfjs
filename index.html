@@ -1,64 +1,139 @@
+<!DOCTYPE html>
 <html>
 
 <head>
-  <script src="tf.min.js"></script>
-  <script src="imagenet_classes.js"></script>
+    <title>Tensorflow.js</title>
 </head>
 
 <body>
-  <img id="img" src="./dog.jpg">
-  <br>
-  <p>Json <input type="file" id="json" /></p>
-  <p>Weight <input type="file" id="weight" /></p>
-  <button onclick="loadModel()">Load model</button>
+    <p>Press 'F12' on your Chrome browser and See console.</p>
+    <button value='circle' onclick="openImageFiles(this.value, makeDataSet)" style="width:100px; height:50px">Circle</button>
+    <button value='rectangle' onclick="openImageFiles(this.value, makeDataSet)" style="width:100px; height:50px">Rectangle</button>
+    <button value='triangle' onclick="openImageFiles(this.value, makeDataSet)" style="width:100px; height:50px">Triangle</button>
+    <br><br>
+    <button onclick="modelFit()" style="width:310px; height:50px">Training</button>
+    <br><br>
+    <button value='test' onclick="openImageFiles(this.value, makeTestSet)" style="width:310px; height:50px">Load test image and predict</button>
+    <div id='board'></div>
 </body>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/tensorflow/1.2.2/tf.js'></script>
 <script>
-  let model;
-  async function loadModel() {
-    model = await tf.loadLayersModel(tf.io.browserFiles(
-      [json.files[0], weight.files[0]]
-    ));
-    await model.summary();
-    load();
-  }
-  async function load() {
-    const img_local = document.getElementById("img");
-    const img = await tf.browser.fromPixels(img_local)
-      .resizeNearestNeighbor([224, 224])
-      .toFloat();
-    const offset = await tf.scalar(127.5);
-    const normalized = await img.sub(offset).div(offset);
-    const batched = await normalized.reshape([1, 224, 224, 3]);
-    const predicts = await model.predict(batched).data();
-    const classes = await getTopClass(predicts, 3);
-    console.log(classes);
-  }
-
-  async function getTopClass(predicts, topK) {
-    const valuesAndIndices = [];
-    for (let i = 0; i < predicts.length; i++) {
-      valuesAndIndices.push({ value: predicts[i], index: i });
-    }
-    valuesAndIndices.sort((a, b) => {
-      return b.value - a.value;
-    });
-    const topkValues = new Float32Array(topK);
-    const topIndics = new Int32Array(topK);
-    for (let i = 0; i < topK; i++) {
-      topkValues[i] = valuesAndIndices[i].value;
-      topIndics[i] = valuesAndIndices[i].index;
+    const label = ['circle', 'rectangle', 'triangle'];
+    const numOfClass = label.length;
+    const board = document.getElementById('board');
+    //Use onehot : circle[1,0,0], rectangle[0,1,0], triangle[0,0,1]
+    function openImageFiles(className, callback) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = 'multiple';
+        input.onchange = function (evt) {
+            for (let d of evt.target.files) {
+                const fileName = d.name;
+                const url = URL.createObjectURL(d)
+                const img = new Image();
+                img.onload = function () {
+                    if(className == 'test') board.appendChild(img);
+                    let tens = tf.browser.fromPixels(img).div(255.0).expandDims(); //div를 하지 않은경우 제대로 되지 않음.
+                    callback([className, tens, fileName]);
+                }
+                img.src = url;
+            }
+        };
+        input.click();
     }
 
-    const topClassAndProbs = [];
-    for (let i = 0; i < topIndics.length; i++) {
-      topClassAndProbs.push({
-        className: topIndics[i],
-        className: IMAGENET_CLASSES[topIndics[i]],
-        probability: topkValues[i]
-      })
+    let xs, ys;
+    function makeDataSet(dataSet) {
+        if (typeof xs === 'undefined') {
+            xs = dataSet[1];
+            ys = toOnehot(dataSet[0]);
+        }
+        else {
+            xs = xs.concat(dataSet[1]);
+            ys = ys.concat(toOnehot(dataSet[0]));
+        }
+        console.log('Added %s data.', dataSet[0]);
+        //console.log(xs.shape);
+        //console.log(ys.shape);
     }
-    return topClassAndProbs;
-  }
+
+    function toOnehot(label) {
+        let y;
+        if (label == 'circle') y = tf.tensor1d([1, 0, 0], 'int32').expandDims();
+        else if (label == 'rectangle') y = tf.tensor1d([0, 1, 0], 'int32').expandDims();
+        else if (label == 'triangle') y = tf.tensor1d([0, 0, 1], 'int32').expandDims();
+        else if (label == 'test') y = "Predict doesn't need y.";
+        return y;
+    }
+
+    let x, y;
+    function makeTestSet(dataSet){
+        x = dataSet[1];
+        y = toOnehot(dataSet[0]);
+        setTimeout(predict, 0);
+    }
+
+    async function makeCNN() {
+        const model = tf.sequential();
+        model.add(tf.layers.conv2d({
+            filters: 32,
+            kernelSize: 3,
+            activation: 'relu',
+            inputShape: [24, 24, 3],
+            strides: 1,
+            kernelInitializer: 'varianceScaling'
+        }));
+        model.add(tf.layers.conv2d({
+            filters: 64,
+            kernelSize: 3,
+            activation: 'relu'
+        }));
+        model.add(tf.layers.maxPooling2d({
+            poolSize: [2,2]
+        }));
+        model.add(tf.layers.flatten());
+        model.add(tf.layers.dense({
+            units: 128, 
+            activation: 'relu'
+        }));
+        model.add(tf.layers.dense({
+            units: numOfClass, 
+            activation: 'softmax'
+        }));
+
+        model.compile({
+            loss: 'categoricalCrossentropy',
+            optimizer: tf.train.adam(),
+            metrics: ['accuracy']
+        });
+        return model;
+    }
+
+    function onBatchEnd(batch, logs){
+        console.log("loss", logs.loss.toFixed(6));
+    }
+
+    let model;
+    async function modelFit(){
+        model = await makeCNN();
+        await model.summary();
+        console.log("Let's start training...")
+        await model.fit(xs, ys, {
+            stepsPerEpoch: 15,
+            epochs: 12,
+            callbacks : {onBatchEnd}
+        });
+        console.log("Complete training.")
+    }
+
+    let myPredict;
+    async function predict(){
+        myPredict = await model.predict(x).data();
+        const myProb = Math.max.apply(null, myPredict);
+        const myLabel = label[myPredict.indexOf(myProb)];
+        console.log('My prediction : %s', myLabel);
+        console.log('Probability : %f', myProb.toFixed(4));
+    }
 </script>
 
 </html>
