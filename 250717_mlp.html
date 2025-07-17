@@ -1,0 +1,79 @@
+<html>
+
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"> </script>
+</head>
+
+<body>
+  <button onclick="csv_to_array()">Read CSV from Clipboard</button>
+  <br>
+  <textarea id="output" rows="20" style="width:100%"></textarea>
+</body>
+<script>
+  const info = document.getElementById("output")
+  const value = {}
+  const csv_to_array = async () => {
+    // Clear the value object
+    Object.keys(value).forEach(key => { delete value[key] })
+    // Clear the output textarea
+    info.value = ""
+    const text = await navigator.clipboard.readText()
+    const text_ary = text.split("\r\n")
+    const header = text_ary[0].split("\t")
+    header.forEach(name => {
+      value[name] = []
+    })
+    for (let i = 1; i < text_ary.length; i++) {
+      const data = text_ary[i].split("\t")
+      for (let j = 0; j < data.length; j++) {
+        value[header[j]].push(data[j])
+      }
+    }
+    info.value = text
+    build_model()
+  }
+
+  let model
+  const build_model = () => {
+    const input_shape = Object.keys(value).length - 1 //3
+    model = tf.sequential()
+    model.add(tf.layers.dense({ units: 20, activation: 'relu', inputShape: [input_shape] }))
+    model.add(tf.layers.dense({ units: 10, activation: 'relu' }))
+    model.add(tf.layers.dense({ units: 1 }))
+    model.compile({
+      optimizer: tf.train.adam(),
+      loss: 'meanSquaredError',
+      metrics: ['accuracy']
+    })
+    model.summary()
+  }
+
+
+  const train_info = async (epoch, logs) => {
+    console.log(`Epoch: ${epoch} - loss: ${logs.loss.toFixed(3)}`)
+  }
+
+  const train = async () => {
+    value["X1"] = value["X1"].map(parseFloat)
+    value["X2"] = value["X2"].map(parseFloat)
+    value["X3"] = value["X3"].map(parseFloat)
+    value["Y"] = value["Y"].map(parseFloat)
+
+    const x = []
+    const y = []
+    for (let i = 0; i < 200; i++) {
+      x.push([value["X1"][i], value["X2"][i], value["X3"][i]])
+      y.push(value["Y"][i])
+    }
+    const xs = tf.tensor2d(x)
+    const ys = tf.tensor1d(y)
+
+    const hist = await model.fit(xs, ys, { epochs: 500, callbacks: { onEpochEnd: train_info } })
+    console.log("Training complete")
+    // console.log(hist.history.loss)
+    await model.predict(tf.tensor([[4.12, 2.27, 1.56]])).print()
+    console.log("Answer is 8.23")
+  }
+</script>
+
+</html>
