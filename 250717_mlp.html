@@ -6,7 +6,11 @@
 </head>
 
 <body>
+  <button onclick="raw_to_array()">Read Data</button>
   <button onclick="csv_to_array()">Read CSV from Clipboard</button>
+  <br>
+  <button onclick="train_btn()">Train</button>
+  <label>Epoch</label><input type="number" id="epoch" value="100">
   <br>
   <textarea id="output" rows="20" style="width:100%"></textarea>
 </body>
@@ -69,12 +73,15 @@
     model.summary()
   }
 
-
+  let _history = []
   const train_info = async (epoch, logs) => {
-    console.log(`Epoch: ${epoch} - loss: ${logs.loss.toFixed(3)}`)
+    const message = `Epoch: ${epoch} - loss: ${logs.loss.toFixed(3)}`
+    console.log(message)
+    _history.push(logs);
+    tfvis.show.history({ name: 'loss', tab: 'History' }, _history, ['loss'])
   }
 
-  const train = async () => {
+  const train = async (epoch) => {
     value["X1"] = value["X1"].map(parseFloat)
     value["X2"] = value["X2"].map(parseFloat)
     value["X3"] = value["X3"].map(parseFloat)
@@ -90,16 +97,17 @@
     const ys = tf.tensor1d(y)
 
     // const hist = await model.fit(xs, ys, { epochs: 500, callbacks: { onEpochEnd: train_info } })
-    let _history = []
     const fit_param = {
-      epochs: 500,
-      validationSplit: 0.2,
+      epochs: epoch,
+      validationSplit: 0.3,
       callbacks: {
-        onEpochEnd: (epoch, logs) => {
-          console.log('epoch', epoch, logs, 'RMSE=>', Math.sqrt(logs.loss));
-          _history.push(logs);
-          tfvis.show.history({ name: 'loss', tab: 'History' }, _history, ['loss']);
-        }
+        // onEpochEnd: (epoch, logs) => {
+        //   // console.log('epoch', epoch, logs, 'RMSE=>', Math.sqrt(logs.loss));
+        //   console.log('epoch', epoch, logs)
+        //   _history.push(logs);
+        //   tfvis.show.history({ name: 'loss', tab: 'History' }, _history, ['loss'])
+        // }
+        onEpochEnd: train_info
       }
     }
     await model.fit(xs, ys, fit_param)
@@ -116,6 +124,11 @@
   let clip_text
   const read_clipboard_text = async () => {
     clip_text = await navigator.clipboard.readText()
+  }
+
+  const train_btn = () => {
+    const epoch = parseInt(document.getElementById("epoch").value)
+    train(epoch)
   }
 </script>
 
